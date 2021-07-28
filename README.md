@@ -1,1 +1,1 @@
-# sync_ui
+# syn_ui
