@@ -1,0 +1,43 @@
+<html>
+<body onload="loadConfig()">
+<script>
+    async function loadConfig() {
+        let response = await fetch('/config');
+        let data = await response.text();
+        console.log(data);
+        let config = JSON.parse(data);
+        document.body.innerHTML = document.body.innerHTML + "<h1>" + config.name + "</h1>";
+        let buttons = config.buttons;
+        let buttonsString = "";
+        buttons.forEach(button => {
+           buttonsString = buttonsString + "<button onmousedown=" + updownCommandString(button.key, "down") +
+               " onmouseup=" + updownCommandString(button.key, "up") + ">" + button.name + "</button>";
+        })
+        document.body.innerHTML = document.body.innerHTML + "<p>" + buttonsString + "</p>";
+    }
+
+    function updownCommandString(key, upDown) {
+        let jsonValue = '{\"key\":\"' + key + '\",\"value\":\"' + upDown + '\"}';
+        let command = "sendKeyCommand('" + jsonValue + "')"
+        return command
+    }
+
+    async function sendKeyCommand(data) {
+        const response = await fetch("/key", {
+            method: 'PUT',
+            headers: {
+                'Content-type': 'application/json'
+            },
+            body: data
+        })
+
+        // Awaiting response.json()
+        const resData = await response.json();
+
+        console.log(resData)
+
+    }
+
+</script>
+</body>
+</html>

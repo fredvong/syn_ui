@@ -1,0 +1,21 @@
+{
+  "name": "Wesley's synthesizer",
+  "buttons": [
+    {
+      "name": "key1",
+      "key": "0x3C"
+    },
+    {
+      "name": "key2",
+      "key": "0x3D"
+    },
+    {
+      "name": "key3",
+      "key": "0x3E"
+    },
+    {
+      "name": "key4",
+      "key": "0x3F"
+    }
+  ]
+}
