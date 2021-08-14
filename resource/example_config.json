@@ -1,21 +1,49 @@
 {
   "name": "Wesley's synthesizer",
-  "buttons": [
-    {
-      "name": "key1",
-      "key": "0x3C"
-    },
-    {
-      "name": "key2",
-      "key": "0x3D"
-    },
-    {
-      "name": "key3",
-      "key": "0x3E"
-    },
-    {
-      "name": "key4",
-      "key": "0x3F"
-    }
-  ]
+  "device": "/dev/tty.usbmodem208A366847521",
+  "button_config": {
+    "start_value": "0x3c",
+    "labels": [
+      "key00",
+      "key01",
+      "key02",
+      "key03",
+      "key04",
+      "key05",
+      "key06",
+      "key07",
+      "key08",
+      "key09",
+      "key10",
+      "key11"
+    ]
+  },
+  "knob_config": {
+    "labels": [
+      "knob00",
+      "knob01",
+      "knob02",
+      "knob03",
+      "knob10",
+      "knob11",
+      "knob12",
+      "knob13",
+      "knob20",
+      "knob21",
+      "knob22",
+      "knob23",
+      "knob30",
+      "knob31",
+      "knob32",
+      "knob33",
+      "knob40",
+      "knob41",
+      "knob42",
+      "knob43",
+      "knob50",
+      "knob51",
+      "knob52",
+      "knob53"
+    ]
+  }
 }

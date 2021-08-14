@@ -1,4 +1,5 @@
-<html>
+package web
+var mainPageHTML = `<html>
 <style>
     button {
         margin-left :5px
@@ -101,4 +102,4 @@
 
 </script>
 </body>
-</html>
+</html>`

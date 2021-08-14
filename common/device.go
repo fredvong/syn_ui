@@ -5,20 +5,20 @@ import (
 	"io/ioutil"
 )
 
-// Button
-// {
-//     command: 0x90,
-//     key: 0x3C,
-//     velocity: 0x7F],
-// }
-type Button struct {
-	Name       string `json:"name"`
-	Key        string `json:"key"`
+type ButtonConfig struct {
+	StartValue string   `json:"start_value"`
+	Labels     []string `json:"labels"`
+}
+
+type KnobConfig struct {
+	Labels []string `json:"labels"`
 }
 
 type Config struct {
-	Name    string   `json:"name"`
-	Buttons []Button `json:"buttons"`
+	Name         string       `json:"name"`
+	Device       string       `json:"device"`
+	ButtonConfig ButtonConfig `json:"button_config"`
+	KnobConfig   KnobConfig   `json:"knob_config"`
 }
 
 func LoadConfig(path string) (config *Config, err error) {

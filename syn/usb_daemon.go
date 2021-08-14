@@ -5,7 +5,12 @@ import (
 	"github.com/jacobsa/go-serial/serial"
 	"github.com/sirupsen/logrus"
 	"io"
-	"log"
+	"sync"
+)
+
+var (
+	port io.ReadWriteCloser
+	mutux sync.Mutex
 )
 
 func RunCommand(port io.ReadWriteCloser, data []byte) (readback []byte, err error) {
@@ -34,9 +39,13 @@ func RunCommand(port io.ReadWriteCloser, data []byte) (readback []byte, err erro
 }
 
 func RunDaemon (portName string) (queue chan <- []byte, err error){
+	logrus.Infof("Running the USB daemon")
 	var (
 		port io.ReadWriteCloser
+		myQueue = make(chan []byte)
 	)
+
+	queue = myQueue
 
 	// Set up options.
 	options := serial.OpenOptions{
@@ -48,23 +57,44 @@ func RunDaemon (portName string) (queue chan <- []byte, err error){
 	}
 
 	// Open the port.
-	port, err = serial.Open(options)
-	if err != nil {
-		log.Fatalf("serial.Open: %v", err)
+	if port, err = serial.Open(options); err != nil {
+		logrus.Errorf("serial.Open: %v", err)
 	}
-
-	myQueue := make(chan []byte)
-	queue = myQueue
 
 	go func() {
 		// Make sure to close it later.
-		defer port.Close()
+		defer func() {
+			if port != nil {
+				port.Close()
+			}
+		}()
 		defer close(myQueue)
+
 		for {
 			select {
 			case data := <- myQueue:
-				if _, err1 := RunCommand(port, data); err1 != nil {
-					logrus.Error(err)
+				if port == nil {
+					// Re-open the port.
+					if port, err = serial.Open(options); err != nil {
+						logrus.Errorf("serial.Open: %v", err)
+						if port != nil {
+							port.Close()
+							port = nil
+						}
+					}
+				}
+				if port != nil {
+					if _, err1 := RunCommand(port, data); err1 != nil {
+						logrus.Error(err1)
+						if port != nil {
+							port.Close()
+							port = nil
+						}
+						// Re-open the port.
+						if port, err = serial.Open(options); err != nil {
+							logrus.Errorf("serial.Open: %v", err)
+						}
+					}
 				}
 			}
 		}
