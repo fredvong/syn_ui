@@ -17,6 +17,7 @@ var (
 	uiConfig *common.Config
 	queue    chan<- []byte
 	velocity = byte(127)
+	debug = false
 )
 
 func headers(w http.ResponseWriter, req *http.Request) {
@@ -29,16 +30,22 @@ func headers(w http.ResponseWriter, req *http.Request) {
 }
 
 func mainPage(w http.ResponseWriter, reg *http.Request) {
-	//var (
-	//	err  error
-	//	data []byte
-	//)
-	//if data, err = ioutil.ReadFile("/Users/fvong/work/syn_ui/resource/main.html"); err != nil {
-	//	return
-	//}
-	//
-	//fmt.Fprintf(w, string(data))
-	fmt.Fprintf(w, mainPageHTML)
+	if !debug {
+		fmt.Fprintf(w, mainPageHTML)
+		return
+	}
+
+	// Running the debug mode.
+	// Read html file from the main.html
+	var (
+		err  error
+		data []byte
+	)
+	if data, err = ioutil.ReadFile("/Users/fvong/work/syn_ui/resource/main.html"); err != nil {
+		return
+	}
+
+	fmt.Fprintf(w, string(data))
 }
 
 func getConfigure(w http.ResponseWriter, reg *http.Request) {
