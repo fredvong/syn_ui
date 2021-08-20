@@ -32,6 +32,7 @@ func RunCommand(port io.ReadWriteCloser, data []byte) (readback []byte, err erro
 	return
 }
 
+// RunDaemon runs the USB daemon to handle the MIDI like command syntax
 func RunDaemon (portName string) (queue chan <- []byte, err error){
 	logrus.Infof("Running USB daemon")
 	var (
