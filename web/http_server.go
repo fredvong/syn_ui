@@ -21,31 +21,35 @@ var (
 )
 
 func headers(w http.ResponseWriter, req *http.Request) {
-
+	var err error
 	for name, headers := range req.Header {
 		for _, h := range headers {
-			fmt.Fprintf(w, "%v: %v\n", name, h)
+			if _, err = fmt.Fprintf(w, "%v: %v\n", name, h); err != nil {
+				logrus.Error(err)
+			}
 		}
 	}
 }
 
 func mainPage(w http.ResponseWriter, reg *http.Request) {
+	var err error
 	if !debug {
-		fmt.Fprintf(w, mainPageHTML)
+		if _, err = fmt.Fprintf(w, mainPageHTML); err != nil {
+			logrus.Errorf("failed to render main page: %s", err)
+		}
 		return
 	}
 
 	// Running the debug mode.
 	// Read html file from the main.html
-	var (
-		err  error
-		data []byte
-	)
+	var data []byte
 	if data, err = ioutil.ReadFile("/Users/fvong/work/syn_ui/resource/main.html"); err != nil {
 		return
 	}
 
-	fmt.Fprintf(w, string(data))
+	if _, err = fmt.Fprintf(w, string(data)); err != nil {
+		logrus.Errorf("failed to render main page: %s", err)
+	}
 }
 
 func getConfigure(w http.ResponseWriter, reg *http.Request) {
@@ -56,16 +60,26 @@ func getConfigure(w http.ResponseWriter, reg *http.Request) {
 	if data, err = json.Marshal(uiConfig); err != nil {
 		panic(err)
 	}
-	fmt.Fprintf(w, string(data))
+	if _, err = fmt.Fprintf(w, string(data)); err != nil {
+		logrus.Errorf("failed to render getConfigure: %s", err)
+	}
 }
 
 func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
+	var err error
 	if reg.Method == "PUT" {
-		defer reg.Body.Close()
+		defer func() {
+			err = reg.Body.Close()
+			if err != nil {
+				logrus.Errorf("failed to close the request body in handleKeyEvent: %s", err)
+			}
+		}()
 		data, _ := ioutil.ReadAll(reg.Body)
 
 		log.Printf("body: %v", string(data))
-		fmt.Fprintf(w, string(data))
+		if _, err = fmt.Fprintf(w, string(data)); err != nil {
+			logrus.Errorf("failed to render handleKeyEvent: %s", err)
+		}
 
 		var (
 			key        string
@@ -73,7 +87,6 @@ func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
 			ok         bool
 			output     = make([]byte, 3)
 			KeyValue   int64
-			err        error
 			commandMap = make(map[string]string)
 		)
 		if err = json.Unmarshal(data, &commandMap); err != nil {
@@ -107,12 +120,23 @@ func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
 }
 
 func handleControlEvent(writer http.ResponseWriter, request *http.Request) {
+	var err error
 	if request.Method == "PUT" {
-		defer request.Body.Close()
-		data, _ := ioutil.ReadAll(request.Body)
+		var data []byte
+		defer func() {
+			var err error
+			if err = request.Body.Close(); err != nil {
+				logrus.Errorf("failed to close request body in handleControlEvent: %s", err)
+			}
+		}()
+		if data, err = ioutil.ReadAll(request.Body); err != nil {
+			logrus.Errorf("failed to read request body in handleControlEvent: %s", err)
+		}
 
-		log.Printf("body: %v", string(data))
-		fmt.Fprintf(writer, string(data))
+		logrus.Debugln("body: %v", string(data))
+		if _, err = fmt.Fprintf(writer, string(data)); err != nil {
+			logrus.Errorf("failed to render handleControlEvent: %s", err)
+		}
 
 		var (
 			controlValue      string
@@ -153,12 +177,20 @@ func handleControlEvent(writer http.ResponseWriter, request *http.Request) {
 }
 
 func handleVelocityEvent(writer http.ResponseWriter, request *http.Request) {
+	var err error
 	if request.Method == "PUT" {
-		defer request.Body.Close()
+		defer func() {
+			var err error
+			if err = request.Body.Close(); err != nil {
+				logrus.Errorf("failed to close request body of handleVelocityEvent: %s", err)
+			}
+		}()
 		data, _ := ioutil.ReadAll(request.Body)
 
 		logrus.Infof("velocity: %v", string(data))
-		fmt.Fprintf(writer, string(data))
+		if _, err = fmt.Fprintf(writer, string(data)); err != nil {
+			logrus.Errorf("failed to redner handleVelocityEvent: %s", err)
+		}
 
 		var (
 			commandMap = make(map[string]string)
@@ -179,7 +211,7 @@ func handleVelocityEvent(writer http.ResponseWriter, request *http.Request) {
 			logrus.Error(err)
 			return
 		}
-		velocity = byte(valueInt64);
+		velocity = byte(valueInt64)
 	}
 }
 

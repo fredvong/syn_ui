@@ -54,8 +54,11 @@ func RunDaemon (portName string) (queue chan <- []byte, err error){
 	go func() {
 		// Make sure to close it later.
 		defer func() {
+			var err error
 			if port != nil {
-				port.Close()
+				if err = port.Close(); err != nil {
+					logrus.Errorf("failed to close port: %s", err)
+				}
 			}
 		}()
 		defer close(myQueue)
@@ -68,7 +71,9 @@ func RunDaemon (portName string) (queue chan <- []byte, err error){
 					if port, err = serial.Open(options); err != nil {
 						logrus.Errorf("failed to connect to USB %v", err)
 						if port != nil {
-							port.Close()
+							if err = port.Close(); err != nil {
+								logrus.Errorf("failed to close port: %s", err)
+							}
 							port = nil
 						}
 					}
@@ -76,7 +81,9 @@ func RunDaemon (portName string) (queue chan <- []byte, err error){
 				if port != nil {
 					if _, err = RunCommand(port, data); err != nil {
 						logrus.Errorf("failed to run command %+v with error: %s", data, err)
-						port.Close()
+						if err = port.Close(); err != nil {
+							logrus.Errorf("failed to close port: %s", err)
+						}
 						port = nil
 					}
 				}
