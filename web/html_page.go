@@ -38,7 +38,7 @@ var mainPageHTML = `<html>
         let knobsString = "";
         let controlValue = 0;
         knobLabels.forEach(label => {
-            knobsString = knobsString + '<span class="block"><label>' + label + '</label><input id="' + label + '" oninput="controlCommandString(\'' + label + '\',\'' + controlValue + '\')" type="range" min="0" max="127" value="64"></span>'
+            knobsString = knobsString + '<span class="block"><label>' + label + '</label><input id="' + label + '" oninput="controlCommandString(\'' + label + '\',\'' + controlValue + '\')" type="range" min="0" max="127" value="0"></span>'
             controlValue++;
         })
         document.body.innerHTML = document.body.innerHTML + "<p><div class='grid'>" + knobsString + "</div></p>";
