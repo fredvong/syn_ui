@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"syn_ui/common"
@@ -18,6 +19,7 @@ var (
 	queue    chan<- []byte
 	velocity = byte(127)
 	debug = false
+	DefaultPort = 8090
 )
 
 func headers(w http.ResponseWriter, req *http.Request) {
@@ -194,7 +196,6 @@ func handleVelocityEvent(writer http.ResponseWriter, request *http.Request) {
 
 		var (
 			commandMap = make(map[string]string)
-			err        error
 			value      string
 			ok         bool
 			valueInt64 int64
@@ -215,6 +216,22 @@ func handleVelocityEvent(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func usbDevice(writer http.ResponseWriter, request *http.Request) {
+	if request.Method == "GET" {
+		_, err := os.Stat(uiConfig.Device)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Fprintf(writer, "{\"status\": \"device %s not found\"}", uiConfig.Device)
+			} else {
+				fmt.Fprintf(writer, "{\"status\": \"device %s has error %s\"}", uiConfig.Device, err)
+			}
+			return
+		}
+		fmt.Fprintf(writer, "{\"status\": \"device %s found\"}", uiConfig.Device)
+		return
+	}
+}
+
 func InitWebServer(config *common.Config) {
 	logrus.Infof("Running the http server")
 	var (
@@ -228,11 +245,14 @@ func InitWebServer(config *common.Config) {
 	http.HandleFunc("/control", handleControlEvent)
 	http.HandleFunc("/velocity", handleVelocityEvent)
 	http.HandleFunc("/headers", headers)
+	http.HandleFunc("/usb_device", usbDevice)
 
 	if queue, err = syn.RunDaemon(config.Device); err != nil {
 		logrus.Error(err)
 	}
-	if err = http.ListenAndServe(":8090", nil); err != nil {
+	logrus.Infof("listerning on port: %d", DefaultPort)
+	if err = http.ListenAndServe(fmt.Sprintf(":%d", DefaultPort), nil); err != nil {
 		panic(err)
 	}
 }
+

@@ -18,7 +18,11 @@
         let data = await response.text();
         console.log(data);
         let config = JSON.parse(data);
-        document.body.innerHTML = document.body.innerHTML + "<h1>" + config.name + "</h1>";
+        response = await fetch('/usb_device');
+        data = await response.text();
+        let device = JSON.parse(data);
+        console.log(device);
+        document.body.innerHTML = document.body.innerHTML + "<h1>" + config.name + " (" + device.status + ")</h1>";
         document.body.innerHTML = document.body.innerHTML + '<hr>'
         let buttonConfig = config.button_config;
         let buttonValue = parseInt(buttonConfig.start_value);
