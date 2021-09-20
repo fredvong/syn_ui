@@ -7,47 +7,63 @@ import (
 	"io"
 )
 
-func RunCommand(port io.ReadWriteCloser, data []byte) (readback []byte, err error) {
-	logrus.Debugf("Run command %v", data)
+var (
+	OKStatusString    = "OK!"
+	StatusByteLength  = len(OKStatusString)
+	ERRStatusString   = "ERR"
+	MaximumBufferSize = 512
+)
+
+type CommandResponse struct {
+	Data  []int64
+	Error string
+}
+
+type CommandRequest struct {
+	Command       []byte
+	ResponseQueue chan<- CommandResponse
+}
+
+func RunCommand(port io.ReadWriteCloser, data []byte) (response []byte, err error) {
+	var (
+		n      int
+		status string
+	)
+	response = make([]byte, MaximumBufferSize)
 	if _, err = port.Write(data); err != nil {
 		return
 	}
-	readback = make([]byte, len(data))
-	var (
-		n int
-	)
-	if n, err = port.Read(readback); err != nil {
+	if n, err = port.Read(response); err != nil {
 		return
 	}
-	if n != len(data) {
-		err = fmt.Errorf("%d is expected, actual is %d", len(data), n)
+	if n < StatusByteLength {
+		err = fmt.Errorf("incompleted status, expect %d bytes or more: %+v", StatusByteLength, response[:n])
 		return
 	}
-	for i, v := range readback {
-		if v != data[i] {
-			err = fmt.Errorf("expected value at byte %d should be %d but get %d", i, data[i], v)
-			return
-		}
+	if status = string(response[n-StatusByteLength : n]); status != OKStatusString {
+		err = fmt.Errorf("returned status not OK!, %+v", response[:n])
+		return
 	}
+	response = response[:n-StatusByteLength]
 	return
 }
 
 // RunDaemon runs the USB daemon to handle the MIDI like command syntax
-func RunDaemon (portName string) (queue chan <- []byte, err error){
+func RunDaemon(portName string) (commandQueue chan<- CommandRequest, err error) {
 	logrus.Infof("Running USB daemon")
 	var (
-		port io.ReadWriteCloser
-		myQueue = make(chan []byte)
+		port           io.ReadWriteCloser
+		myCommandQueue = make(chan CommandRequest)
 	)
 
-	queue = myQueue
+	commandQueue = myCommandQueue
 
 	// Set up options.
 	options := serial.OpenOptions{
-		PortName: portName,
-		BaudRate: 19200,
-		DataBits: 8,
-		StopBits: 1,
+		PortName:        portName,
+		BaudRate:        19200,
+		DataBits:        8,
+		StopBits:        1,
 		MinimumReadSize: 1,
 	}
 
@@ -61,11 +77,12 @@ func RunDaemon (portName string) (queue chan <- []byte, err error){
 				}
 			}
 		}()
-		defer close(myQueue)
+		defer close(myCommandQueue)
 
+		var response []byte
 		for {
 			select {
-			case data := <- myQueue:
+			case commandRequest := <-myCommandQueue:
 				if port == nil {
 					// open the port.
 					if port, err = serial.Open(options); err != nil {
@@ -79,12 +96,28 @@ func RunDaemon (portName string) (queue chan <- []byte, err error){
 					}
 				}
 				if port != nil {
-					if _, err = RunCommand(port, data); err != nil {
-						logrus.Errorf("failed to run command %+v with error: %s", data, err)
+					if response, err = RunCommand(port, commandRequest.Command); err != nil {
 						if err = port.Close(); err != nil {
 							logrus.Errorf("failed to close port: %s", err)
 						}
 						port = nil
+					}
+				} else {
+					err = fmt.Errorf("failed to connect to port %s", portName)
+				}
+				responseInt64 := make([]int64, len(response))
+				for i, value := range response {
+					responseInt64[i] = int64(value)
+				}
+				if err != nil {
+					commandRequest.ResponseQueue <- CommandResponse{
+						Data:  responseInt64,
+						Error: err.Error(),
+					}
+				} else {
+					commandRequest.ResponseQueue <- CommandResponse{
+						Data:  responseInt64,
+						Error: "",
 					}
 				}
 			}

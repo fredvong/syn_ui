@@ -15,14 +15,24 @@ var mainPageHTML = `<html>
 <body onload="loadConfig()">
 <script>
     async function loadConfig() {
+        // Read configuration
         let response = await fetch('/config');
         let data = await response.text();
         console.log(data);
         let config = JSON.parse(data);
+
+        // Read device status
         response = await fetch('/usb_device');
         data = await response.text();
         let device = JSON.parse(data);
         console.log(device);
+
+        // Read parameters
+        response = await fetch('/parameter');
+        data = await response.text();
+        let parameterResponse = JSON.parse(data);
+        console.log(device);
+
         document.body.innerHTML = document.body.innerHTML + "<h1>" + config.name + " (" + device.status + ")</h1>";
         document.body.innerHTML = document.body.innerHTML + '<hr>'
         let buttonConfig = config.button_config;
@@ -42,7 +52,8 @@ var mainPageHTML = `<html>
         let knobsString = "";
         let controlValue = 0;
         knobLabels.forEach(label => {
-            knobsString = knobsString + '<span class="block"><label>' + label + '</label><input id="' + label + '" oninput="controlCommandString(\'' + label + '\',\'' + controlValue + '\')" type="range" min="0" max="127" value="0"></span>'
+            let currentKnobValue = parameterResponse.Data[controlValue]
+            knobsString = knobsString + '<span class="block"><label>' + label + '</label><input id="' + label + '" oninput="controlCommandString(\'' + label + '\',\'' + controlValue + '\')" type="range" min="0" max="127" value="' + currentKnobValue + '"></span>'
             controlValue++;
         })
         document.body.innerHTML = document.body.innerHTML + "<p><div class='grid'>" + knobsString + "</div></p>";

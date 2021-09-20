@@ -12,15 +12,57 @@ import (
 	"strings"
 	"syn_ui/common"
 	"syn_ui/syn"
+	"time"
 )
 
 var (
-	uiConfig *common.Config
-	queue    chan<- []byte
-	velocity = byte(127)
-	debug = false
-	DefaultPort = 8090
+	uiConfig       *common.Config
+	queue          chan<- syn.CommandRequest
+	velocity       = byte(127)
+	debug          = false
+	DefaultPort    = 8090
+	CommandTimeout = 5 * time.Second
+	CommandReadParameter = []byte { 0xf0, 0x00, 0x81, 0xf7 }
 )
+
+func runCommand(writer http.ResponseWriter, command []byte) (err error) {
+	var (
+		commandResponse syn.CommandResponse
+		responseQueue = make(chan syn.CommandResponse)
+		response        []byte
+	)
+
+	queue <- syn.CommandRequest{
+		Command:       command,
+		ResponseQueue: responseQueue,
+	}
+	defer close(responseQueue)
+
+	select {
+	case commandResponse = <-responseQueue:
+		if len(commandResponse.Error) > 0  {
+			logrus.Errorf("failed to run command %+v with error %s", command, err)
+		}
+	case <-time.After(CommandTimeout):
+		err1 := fmt.Errorf("failed to run command %+v with timeout after %s", command, CommandTimeout)
+		commandResponse = syn.CommandResponse{
+			Data:  make([]int64, 0),
+			Error: err1.Error(),
+		}
+	}
+	logrus.Infof("response: %+v", commandResponse)
+	if response, err = json.Marshal(commandResponse); err != nil {
+		err1 := fmt.Errorf("failed to convert the command response %+v of command %+v, to json string with error %s", commandResponse, command, err)
+		logrus.Error(err)
+		commandResponse.Error = err1.Error()
+	}
+	logrus.Infof("json: %+v, %s", response, string(response))
+
+	if _, err = fmt.Fprint(writer, string(response)); err != nil {
+		logrus.Errorf("failed to write response: %s", string(response))
+	}
+	return
+}
 
 func headers(w http.ResponseWriter, req *http.Request) {
 	var err error
@@ -67,7 +109,7 @@ func getConfigure(w http.ResponseWriter, reg *http.Request) {
 	}
 }
 
-func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
+func handleKeyEvent(writer http.ResponseWriter, reg *http.Request) {
 	var err error
 	if reg.Method == "PUT" {
 		defer func() {
@@ -79,17 +121,17 @@ func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
 		data, _ := ioutil.ReadAll(reg.Body)
 
 		log.Printf("body: %v", string(data))
-		if _, err = fmt.Fprintf(w, string(data)); err != nil {
+		if _, err = fmt.Fprintf(writer, string(data)); err != nil {
 			logrus.Errorf("failed to render handleKeyEvent: %s", err)
 		}
 
 		var (
-			key        string
-			value      string
-			ok         bool
-			output     = make([]byte, 3)
-			KeyValue   int64
-			commandMap = make(map[string]string)
+			key             string
+			value           string
+			ok              bool
+			command         = make([]byte, 3)
+			KeyValue        int64
+			commandMap      = make(map[string]string)
 		)
 		if err = json.Unmarshal(data, &commandMap); err != nil {
 			logrus.Error(err)
@@ -104,9 +146,9 @@ func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
 			return
 		}
 		if value == "down" {
-			output[0] = 0x90
+			command[0] = 0x90
 		} else {
-			output[0] = 0x80
+			command[0] = 0x80
 		}
 		if strings.HasPrefix(key, "0x") {
 			key = strings.TrimPrefix(key, "0x")
@@ -115,9 +157,11 @@ func handleKeyEvent(w http.ResponseWriter, reg *http.Request) {
 			logrus.Error(err)
 			return
 		}
-		output[1] = byte(KeyValue)
-		output[2] = velocity
-		queue <- output
+		command[1] = byte(KeyValue)
+		command[2] = velocity
+		if err = runCommand(writer, command); err != nil {
+			logrus.Errorf("failed to render handleKeyEvent response: %s", err)
+		}
 	}
 }
 
@@ -144,7 +188,7 @@ func handleControlEvent(writer http.ResponseWriter, request *http.Request) {
 			controlValue      string
 			value             string
 			ok                bool
-			output            = make([]byte, 3)
+			command           = make([]byte, 3)
 			controlValueInt64 int64
 			valueInt64        int64
 			err               error
@@ -171,10 +215,12 @@ func handleControlEvent(writer http.ResponseWriter, request *http.Request) {
 			return
 		}
 
-		output[0] = 176
-		output[1] = byte(controlValueInt64)
-		output[2] = byte(valueInt64)
-		queue <- output
+		command[0] = 176
+		command[1] = byte(controlValueInt64)
+		command[2] = byte(valueInt64)
+		if err = runCommand(writer, command); err != nil {
+			logrus.Errorf("failed to render handleKeyEvent response: %s", err)
+		}
 	}
 }
 
@@ -216,19 +262,40 @@ func handleVelocityEvent(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func usbDevice(writer http.ResponseWriter, request *http.Request) {
+func handleUSBDevice(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
-		_, err := os.Stat(uiConfig.Device)
+		var (
+			err error
+			err1 error
+		)
+		_, err = os.Stat(uiConfig.Device)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Fprintf(writer, "{\"status\": \"device %s not found\"}", uiConfig.Device)
+				_, err1 = fmt.Fprintf(writer, "{\"status\": \"device %s not found\"}", uiConfig.Device)
 			} else {
-				fmt.Fprintf(writer, "{\"status\": \"device %s has error %s\"}", uiConfig.Device, err)
+				_, err1 = fmt.Fprintf(writer, "{\"status\": \"device %s has error %s\"}", uiConfig.Device, err)
+			}
+			if err1 != nil {
+				logrus.Errorf("failed to write reponse: %s", err1)
 			}
 			return
 		}
-		fmt.Fprintf(writer, "{\"status\": \"device %s found\"}", uiConfig.Device)
+		_, err1 = fmt.Fprintf(writer, "{\"status\": \"device %s found\"}", uiConfig.Device)
+		if err1 != nil {
+			logrus.Errorf("failed to write reponse: %s", err1)
+		}
 		return
+	}
+}
+
+func handleParameter(writer http.ResponseWriter, request *http.Request) {
+	if request.Method == "GET" {
+		var (
+			err error
+		)
+		if err = runCommand(writer, CommandReadParameter); err != nil {
+			logrus.Errorf("failed to render handleKeyEvent response: %s", err)
+		}
 	}
 }
 
@@ -245,7 +312,8 @@ func InitWebServer(config *common.Config) {
 	http.HandleFunc("/control", handleControlEvent)
 	http.HandleFunc("/velocity", handleVelocityEvent)
 	http.HandleFunc("/headers", headers)
-	http.HandleFunc("/usb_device", usbDevice)
+	http.HandleFunc("/usb_device", handleUSBDevice)
+	http.HandleFunc("/parameter", handleParameter)
 
 	if queue, err = syn.RunDaemon(config.Device); err != nil {
 		logrus.Error(err)
@@ -255,4 +323,3 @@ func InitWebServer(config *common.Config) {
 		panic(err)
 	}
 }
-
